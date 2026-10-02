@@ -4,20 +4,22 @@ import os
 import re
 import urllib.parse
 
-TABS = {
-    "AD CAMPAIGNS": "1657559578",
-    "XC": "887911653",
-    "GZ": "1770634798",
-    "ES CAMPAIGNS": "373008080",
-    "MI CAMPAIGNS": "913012655"
-}
+SHEET_ID = "1EHEz3cbsFb6xsFrxcZBe7RVx9AOsfy74i_SIdrgGqEk"
+HTML_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/htmlview"
+BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid="
 
-BASE_URL = "https://docs.google.com/spreadsheets/d/1EHEz3cbsFb6xsFrxcZBe7RVx9AOsfy74i_SIdrgGqEk/export?format=csv&gid="
+def get_dynamic_sheets():
+    try:
+        r = requests.get(HTML_URL, timeout=10)
+        matches = re.findall(r'\{name:\s*\"(.*?)\",.*?gid:\s*\"(.*?)\"', r.text)
+        return {name: gid for name, gid in matches}
+    except Exception as e:
+        print("Failed to load dynamic tabs:", e)
+        return {}
+
+TABS = get_dynamic_sheets()
 
 # Since this will run inside the GitHub repo, we save directly to the root or campaign_logos folder.
-# Based on how they uploaded it, the files might be in the root or in a campaign_logos folder.
-# Let's save them directly to the root to make URLs cleaner, OR match what they have. 
-# We'll save to 'campaign_logos' folder if they want to keep it organized.
 SAVE_DIR = "campaign_logos"
 if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
@@ -47,14 +49,14 @@ def sync_logos():
         name = clean_filename(row['Name'])
         url = row['Logo Link']
         
-        # We need to save the file exactly as we expect it in the Streamlit app
         file_name = f"{name}.png"
         file_path = os.path.join(SAVE_DIR, file_name)
         
-        if os.path.exists(file_path):
-            continue # Already backed up!
+        # Overwrite existing logos if they already exist, so updates work correctly.
+        # if os.path.exists(file_path):
+        #     continue 
             
-        print(f"Found new logo: {name} -> Downloading...")
+        print(f"Found brand new campaign: {name} -> Downloading...")
         try:
             r = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
             if r.status_code == 200 and 'image' in r.headers.get('Content-Type', '').lower():
